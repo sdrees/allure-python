@@ -13,14 +13,14 @@ from allure_commons.model2 import TestBeforeResult, TestAfterResult
 from allure_commons.model2 import TestResultContainer
 from allure_commons.model2 import Parameter, Label
 from allure_behave.utils import scenario_parameters
-from allure_behave.utils import scenario_severity
-from allure_behave.utils import scenario_tags
 from allure_behave.utils import scenario_name
 from allure_behave.utils import scenario_history_id
 from allure_behave.utils import step_status, step_status_details
 from allure_behave.utils import scenario_status, scenario_status_details
 from allure_behave.utils import step_table
 from allure_behave.utils import get_status, get_status_details
+from allure_behave.utils import scenario_links
+from allure_behave.utils import scenario_labels
 
 
 BEFORE_FIXTURES = ['before_all', 'before_tag', 'before_feature', 'before_scenario']
@@ -33,6 +33,7 @@ class AllureListener(object):
         self.behave_config = behave_config
         self.logger = AllureReporter()
         self.current_step_uuid = None
+        self.current_scenario_uuid = None
         self.execution_context = Context()
         self.fixture_context = Context()
         self.steps = deque()
@@ -82,47 +83,54 @@ class AllureListener(object):
 
     @allure_commons.hookimpl
     def start_test(self, parent_uuid, uuid, name, parameters, context):
-        scenario = context['scenario']
+        self.start_scenario(context['scenario'])
+
+    def start_scenario(self, scenario):
+        self.current_scenario_uuid = uuid4()
         self.fixture_context.enter()
         self.execution_context.enter()
-        self.execution_context.append(uuid)
+        self.execution_context.append(self.current_scenario_uuid)
 
-        test_case = TestResult(uuid=uuid, start=now())
+        test_case = TestResult(uuid=self.current_scenario_uuid, start=now())
         test_case.name = scenario_name(scenario)
         test_case.historyId = scenario_history_id(scenario)
         test_case.description = '\n'.join(scenario.description)
         test_case.parameters = scenario_parameters(scenario)
-        test_case.labels.extend([Label(name=LabelType.TAG, value=tag) for tag in scenario_tags(scenario)])
-        test_case.labels.append(Label(name=LabelType.SEVERITY, value=scenario_severity(scenario).value))
+
+        test_case.links.extend(scenario_links(scenario))
+        test_case.labels.extend(scenario_labels(scenario))
         test_case.labels.append(Label(name=LabelType.FEATURE, value=scenario.feature.name))
         test_case.labels.append(Label(name=LabelType.FRAMEWORK, value='behave'))
         test_case.labels.append(Label(name=LabelType.LANGUAGE, value=platform_label()))
 
-        self.logger.schedule_test(uuid, test_case)
+        self.logger.schedule_test(self.current_scenario_uuid, test_case)
 
     @allure_commons.hookimpl
     def stop_test(self, parent_uuid, uuid, name, context, exc_type, exc_val, exc_tb):
-        scenario = context['scenario']
+        self.stop_scenario(context['scenario'])
+
+    def stop_scenario(self, scenario):
         if scenario.status == 'skipped' and not self.behave_config.show_skipped:
-            self.logger.drop_test(uuid)
+            self.logger.drop_test(self.current_scenario_uuid)
         else:
             status = scenario_status(scenario)
             status_details = scenario_status_details(scenario)
 
             self.flush_steps()
-            test_result = self.logger.get_test(uuid)
+            test_result = self.logger.get_test(self.current_scenario_uuid)
             test_result.stop = now()
             test_result.status = status
             test_result.statusDetails = status_details
-            self.logger.close_test(uuid)
+            self.logger.close_test(self.current_scenario_uuid)
             self.current_step_uuid = None
 
             for group in self.fixture_context.exit():
-                group.children.append(uuid)
+                group.children.append(self.current_scenario_uuid)
                 self.logger.stop_group(group.uuid)
 
         self.execution_context.exit()
-        self.execution_context.append(uuid)
+        self.execution_context.append(self.current_scenario_uuid)
+        self.current_scenario_uuid = None
 
     def schedule_step(self, step):
         self.steps.append(step)

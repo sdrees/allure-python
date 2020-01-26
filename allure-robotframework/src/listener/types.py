@@ -1,6 +1,7 @@
 class RobotStatus(object):
     FAILED = 'FAIL'
     PASSED = 'PASS'
+    SKIPPED = 'SKIP'
 
 
 class RobotKeywordType(object):
@@ -21,10 +22,3 @@ class RobotLogLevel(object):
     TRACE = 'TRACE'
 
     CRITICAL_LEVELS = [FAIL, ERROR]
-
-
-class RobotBasicKeywords(object):
-    BUILTIN_LIB = 'BuiltIn'
-    NO_OPERATION = BUILTIN_LIB + '.No Operation'
-    FAIL = BUILTIN_LIB + '.Fail'
-    LOG = BUILTIN_LIB + '.Log'
