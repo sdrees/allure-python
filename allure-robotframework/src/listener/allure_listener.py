@@ -10,7 +10,7 @@ from allure_commons.utils import md5
 from allure_commons.utils import platform_label
 from allure_commons.utils import host_tag
 from allure_commons.utils import format_exception, format_traceback
-from allure_commons.model2 import Label
+from allure_commons.model2 import Label, Link
 from allure_commons.model2 import Status, StatusDetails
 from allure_commons.model2 import Parameter
 from allure_commons.types import LabelType, AttachmentType, Severity, LinkType
@@ -35,8 +35,14 @@ def get_status_details(exc_type, exception, exc_traceback):
                              trace=format_traceback(exc_traceback))
 
 
+DEFAULT_POOL_ID = "default-" + uuid4()
+
+
 def pool_id():
-    return BuiltIn().get_variable_value('${PABOTEXECUTIONPOOLID}') or "default"
+    pabot_pool_id = BuiltIn().get_variable_value('${PABOTEXECUTIONPOOLID}')
+    pabot_caller_id = BuiltIn().get_variable_value('${CALLER_ID}')
+    return "{}-{}".format(pabot_pool_id, pabot_caller_id) \
+        if all([pabot_pool_id, pabot_caller_id]) else DEFAULT_POOL_ID
 
 
 def get_message_time(timestamp):
@@ -143,7 +149,7 @@ class AllureListener(object):
             test_result.labels.append(Label(name=LabelType.HOST, value=self._host))
             test_result.labels.append(Label(name=LabelType.THREAD, value=pool_id()))
             test_result.labels.extend(allure_tags(attributes))
-            test_result.statusDetails = StatusDetails(message=self._current_msg or attributes.get('message'),
+            test_result.statusDetails = StatusDetails(message=attributes.get('message'),
                                                       trace=self._current_tb)
 
             if attributes.get('critical') == 'yes':
@@ -194,6 +200,28 @@ class AllureListener(object):
         if attachment:
             self.lifecycle.attach_data(uuid=uuid4(), body=attachment, name='Keyword Log',
                                        attachment_type=AttachmentType.HTML)
+
+    @allure_commons.hookimpl
+    def decorate_as_label(self, label_type, labels):
+        def deco(func):
+            def wrapper(*args, **kwargs):
+                self.add_label(label_type, labels)
+                func(*args, **kwargs)
+            return wrapper
+        return deco
+
+    @allure_commons.hookimpl
+    def add_label(self, label_type, labels):
+        with self.lifecycle.update_test_case() as case:
+            for label in labels if case else ():
+                case.labels.append(Label(label_type, label))
+
+    @allure_commons.hookimpl
+    def add_link(self, url, link_type, name):
+        with self.lifecycle.update_test_case() as case:
+            link = Link(url=url, type=link_type, name=name)
+            if case and link not in case.links:
+                case.links.append(Link(url=url, type=link_type, name=name))
 
     @allure_commons.hookimpl
     def attach_data(self, body, name, attachment_type, extension):
