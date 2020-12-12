@@ -3,17 +3,15 @@ import argparse
 import allure
 import allure_commons
 import os
-import json
 
 from allure_commons.types import LabelType
 from allure_commons.logger import AllureFileLogger
-
+from allure_commons.utils import get_testplan
 
 from allure_pytest.utils import allure_label, allure_labels, allure_full_name
-from allure_pytest.helper import AllureTestHelper
+from allure_pytest.helper import AllureTestHelper, AllureTitleHelper
 from allure_pytest.listener import AllureListener
 
-from allure_pytest.utils import ALLURE_DISPLAY_NAME_MARK
 from allure_pytest.utils import ALLURE_DESCRIPTION_MARK, ALLURE_DESCRIPTION_HTML_MARK
 from allure_pytest.utils import ALLURE_LABEL_MARK, ALLURE_LINK_MARK
 
@@ -112,12 +110,17 @@ def cleanup_factory(plugin):
     return clean_up
 
 
+def pytest_addhooks(pluginmanager):
+    # Need register title hooks before conftest init
+    title_helper = AllureTitleHelper()
+    allure_commons.plugin_manager.register(title_helper)
+
+
 def pytest_configure(config):
     report_dir = config.option.allure_report_dir
     clean = config.option.clean_alluredir
 
     test_helper = AllureTestHelper(config)
-    # TODO: Why helper is present anyway?
     allure_commons.plugin_manager.register(test_helper)
     config.add_cleanup(cleanup_factory(test_helper))
 
@@ -134,7 +137,6 @@ def pytest_configure(config):
 
     config.addinivalue_line("markers", "{mark}: allure label marker".format(mark=ALLURE_LABEL_MARK))
     config.addinivalue_line("markers", "{mark}: allure link marker".format(mark=ALLURE_LINK_MARK))
-    config.addinivalue_line("markers", "{mark}: allure test name marker".format(mark=ALLURE_DISPLAY_NAME_MARK))
     config.addinivalue_line("markers", "{mark}: allure description".format(mark=ALLURE_DESCRIPTION_MARK))
     config.addinivalue_line("markers", "{mark}: allure description html".format(mark=ALLURE_DESCRIPTION_HTML_MARK))
 
@@ -148,13 +150,7 @@ def select_by_labels(items, config):
 
 
 def select_by_testcase(items):
-    planned_tests = []
-    file_path = os.environ.get("AS_TESTPLAN_PATH")
-
-    if file_path:
-        with open(file_path, 'r') as plan_file:
-            plan = json.load(plan_file)
-            planned_tests = plan.get("tests", [])
+    planned_tests = get_testplan()
 
     if planned_tests:
 

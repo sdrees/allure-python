@@ -1,9 +1,12 @@
 from functools import wraps
+from typing import Any, Callable, TypeVar
 
 from allure_commons._core import plugin_manager
 from allure_commons.types import LabelType, LinkType
 from allure_commons.utils import uuid4
 from allure_commons.utils import func_parameters, represent
+
+_TFunc = TypeVar("_TFunc", bound=Callable[..., Any])
 
 
 def safely(result):
@@ -125,6 +128,18 @@ class Dynamic(object):
     def testcase(url, name=None):
         Dynamic.link(url, link_type=LinkType.TEST_CASE, name=name)
 
+    @staticmethod
+    def suite(suite_name):
+        Dynamic.label(LabelType.SUITE, suite_name)
+
+    @staticmethod
+    def parent_suite(parent_suite_name):
+        Dynamic.label(LabelType.PARENT_SUITE, parent_suite_name)
+
+    @staticmethod
+    def sub_suite(sub_suite_name):
+        Dynamic.label(LabelType.SUB_SUITE, sub_suite_name)
+
 
 def step(title):
     if callable(title):
@@ -147,7 +162,7 @@ class StepContext:
         plugin_manager.hook.stop_step(uuid=self.uuid, title=self.title, exc_type=exc_type, exc_val=exc_val,
                                       exc_tb=exc_tb)
 
-    def __call__(self, func):
+    def __call__(self, func: _TFunc) -> _TFunc:
         @wraps(func)
         def impl(*a, **kw):
             __tracebackhide__ = True

@@ -11,6 +11,7 @@ from allure_commons.utils import md5
 from allure_commons.utils import format_exception, format_traceback
 from allure_commons.mapping import parse_tag, labels_set
 
+TEST_PLAN_SKIP_REASON = "Not in allure test plan"
 
 STATUS = {
     'passed': Status.PASSED,
@@ -91,6 +92,12 @@ def get_status(exception):
     return Status.PASSED
 
 
+def get_fullname(scenario):
+    name_with_param = scenario_name(scenario)
+    name = name_with_param.rsplit(" -- ")[0]
+    return "{filename}:{name}".format(filename=scenario.filename, name=name)
+
+
 def step_status_details(result):
     if result.exception:
         # workaround for https://github.com/behave/behave/pull/616
@@ -108,3 +115,15 @@ def step_table(step):
     table = [','.join(step.table.headings)]
     [table.append(','.join(list(row))) for row in step.table.rows]
     return '\n'.join(table)
+
+
+def is_planned_scenario(scenario, test_plan):
+    if test_plan:
+        fullname = get_fullname(scenario)
+        labels = scenario_labels(scenario)
+        id_labels = list(filter(lambda label: label.name == LabelType.ID, labels))
+        allure_id = id_labels[0].value if id_labels else None
+        for item in test_plan:
+            if (allure_id and allure_id == item.get("id")) or fullname == item.get("selector"):
+                return
+        scenario.skip(reason=TEST_PLAN_SKIP_REASON)

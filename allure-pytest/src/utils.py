@@ -11,7 +11,6 @@ from allure_commons.model2 import StatusDetails
 from allure_commons.types import LabelType
 
 
-ALLURE_DISPLAY_NAME_MARK = 'allure_display_name'
 ALLURE_DESCRIPTION_MARK = 'allure_description'
 ALLURE_DESCRIPTION_HTML_MARK = 'allure_description_html'
 ALLURE_LABEL_MARK = 'allure_label'
@@ -32,7 +31,7 @@ def get_marker_value(item, keyword):
 
 
 def allure_title(item):
-    return get_marker_value(item, ALLURE_DISPLAY_NAME_MARK)
+    return getattr(item._obj, '__allure_display_name__', None)
 
 
 def allure_description(item):
@@ -109,7 +108,7 @@ def allure_package(item):
 def allure_name(item, parameters):
     name = escape_name(item.name)
     title = allure_title(item)
-    return title.format(**parameters) if title else name
+    return title.format(**{**parameters, **item.funcargs}) if title else name
 
 
 def allure_full_name(item):
